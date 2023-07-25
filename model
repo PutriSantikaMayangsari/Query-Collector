@@ -1,0 +1,135 @@
+import xml.etree.ElementTree as ET
+import zipfile
+import glob
+import re
+import asyncio
+import aiofiles
+import os
+import pathlib
+
+file_xml = None
+tag_tertentu = 'elementParameter'
+atribut_tertentu = 'MEMO_SQL'
+extract_path = None
+
+def main():
+    global file_xml 
+    global tag_tertentu
+    global atribut_tertentu
+    global extract_path
+    
+    zip_path = input("Masukkan zip file: ")
+    extract_path, file_xml = extract_file(zip_path)
+    ubah_dir = ubah_direktori(extract_path)
+    hapus_karakter = hapus_karakter_khusus(ubah_dir)
+    ambil_atribut = ambil_atribut_tertentu(hapus_karakter,tag_tertentu, atribut_tertentu)
+    directori_awal = dir_awal(ubah_dir)
+    
+def extract_file(zip_path):
+    global file_xml 
+    # Membuka file .zip dengan library zipfile
+    with zipfile.ZipFile(zip_path, 'r') as zip_obj:
+        # Mendapatkan daftar nama file di dalam .zip
+        file_list = zip_obj.namelist()
+
+        # Mengekstrak file .item
+        item_file=[]
+        for file_name in file_list:
+            if file_name.endswith('.item'):
+                item_file.append(file_name)
+                print(file_name)
+
+        if len(item_file) == 0:
+            print("file .item not found!")
+        # item_file[1] karena ingin mengambil file CDP_DMT_WHL_RIM_DLY_H1_0.1.item pada folder 
+        else : 
+            file_xml = item_file[1]
+            pattern = '([A-Za-z0-9_]+)(?=_0\.1)'
+            # ([A-Za-z0-9_]+)(?=_0\.1) , ([A-Za-z0-9_.]+)(?=\.\w+)
+            # searching the pattern
+            match = re.findall(pattern, file_xml)
+            if match:
+                for extract_path in match:
+                    zip_obj.extract(file_xml, path=extract_path)
+                    print("File Extract: ", file_xml)
+                    print("Extract Path: ", extract_path)
+                    return extract_path, file_xml
+    
+def ubah_direktori(path_extract):
+    global extract_path
+
+    # Mengambil direktori kerja saat ini = C:\Users\Lenovo
+    current_dir = os.getcwd()
+
+    # Mengubah ke direktori C:\Users\Lenovo\CDP_DMT_WHL_RIM_DLY_H1
+    os.chdir(path_extract)
+
+    # Memperbarui nilai dari variabel global extract_path
+    extract_path = os.getcwd()
+
+    # Menampilkan direktori kerja saat ini (C:\Users\Lenovo\CDP_DMT_WHL_RIM_DLY_H1)
+    print("Direktori kerja saat ini:", extract_path)
+
+    # Mengembalikan hasil os.chdir()
+    return extract_path
+
+def hapus_karakter_khusus(file_path):
+    global file_xml 
+    # Membaca isi file XML
+    with open(file_xml, 'r') as file:
+        xml_data = file.read()
+        
+    # Pola regex untuk karakter khusus
+    pola_regex = r'(&[A-Za-z0-9#\W].*?);'
+
+    # Menghapus karakter khusus menggunakan regex
+    xml_data_bersih = re.sub(pola_regex, ' ', xml_data)
+
+    return xml_data_bersih
+
+def ambil_atribut_tertentu(nama_file, tag_tertentu, atribut_tertentu):
+    global file_xml
+    global extract_path
+    # Menghapus karakter khusus dari file XML
+    xml_data_bersih = hapus_karakter_khusus(nama_file)
+    print(xml_data_bersih)
+
+    # Membuat objek ElementTree dari data XML yang bersih
+    tree = ET.ElementTree(ET.fromstring(xml_data_bersih))
+
+    # Mendapatkan elemen root
+    root = tree.getroot()
+    
+    # Menginisialisasi array untuk menyimpan data
+    data_array = []
+    if len(data_array) == 0:
+        tag_tertentu = 'elementParameter'
+        atribut_tertentu = 'MEMO_SQL'
+
+    # Mengambil atribut 'field' dengan nilai 'MEMO_SQL' dan nilai 'value' dari elemen dengan tag 'elementParameter'
+    for elem in root.iter(tag_tertentu):
+        if elem.attrib and 'field' in elem.attrib and elem.attrib['field'] == atribut_tertentu and 'value' in elem.attrib:
+            nilai_value = elem.attrib['value']
+            data_array.append(nilai_value+ ";")
+            print(f"Nilai {atribut_tertentu}: {nilai_value}")
+            
+    # Menyimpan data dalam file SQL
+    file_name = f"{extract_path}.sql"
+    with open(file_path, 'w') as file:
+        for data in data_array:
+            file.write(f"{data}\n")  # Menulis data dalam kolom
+            print(f"Data telah disimpan dalam file: {file_path}")
+            return file_path
+
+def dir_awal(path_extractt):
+    global file_xml 
+    # Mendapatkan direktori awal (home directory)
+    home_dir = str(Path.home())
+
+    # Mengubah direktori kerja ke direktori awal
+    os.chdir(home_dir)
+
+    # Menampilkan direktori kerja setelah perubahan
+    print('New working directory:', os.getcwd())
+        
+main()
